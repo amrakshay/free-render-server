@@ -1,21 +1,36 @@
-# Stage 1: Base image with dependencies and n8n installation
+# Stage 1: Base image with expensive operations first
 FROM alpine:latest AS base
 
-# Install system dependencies
+# Install system dependencies (expensive but stable)
 RUN apk update && apk add --no-cache \
     nginx \
     nodejs \
     npm \
     su-exec \
     shadow \
-    bash
+    bash \
+    curl \
+    unzip \
+    openssh \
+    jq
 
-# Create node user
+# Install n8n globally FIRST (most expensive step)
+RUN npm install -g n8n
+
+# Install ngrok (expensive but stable)
+RUN curl -sSL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz \
+    | tar xz -C /usr/local/bin
+
+# Create node user (stable)
 RUN addgroup -g 1000 node && \
     adduser -u 1000 -G node -s /bin/sh -D node
 
-# Install n8n globally (this is the expensive step)
-RUN npm install -g n8n
+# Configure SSH (stable)
+RUN ssh-keygen -A && \
+    mkdir -p /var/run/sshd && \
+    echo 'root:Secure@FreeRender2024' | chpasswd && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
 # Stage 2: Final image with configuration
 FROM base
@@ -24,7 +39,8 @@ FROM base
 RUN mkdir -p /var/log/nginx \
     && mkdir -p /run/nginx \
     && mkdir -p /var/cache/nginx \
-    && mkdir -p /home/node/.n8n
+    && mkdir -p /home/node/.n8n \
+    && mkdir -p /var/www
 
 # Copy configuration files
 COPY nginx.conf /etc/nginx/nginx.conf
@@ -44,6 +60,10 @@ ENV N8N_PATH=/n8n/
 ENV N8N_DIAGNOSTICS_ENABLED=false
 ENV N8N_ANONYMOUS_USAGE=false
 ENV N8N_DISABLE_PRODUCTION_MAIN_PROCESS=true
+
+# Set environment variables for ngrok (optional)
+ENV NGROK_ENABLED=false
+ENV NGROK_AUTHTOKEN=
 
 # Expose port 80 for nginx
 EXPOSE 80

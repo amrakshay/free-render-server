@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  free-render-server:
+    build: .
+    container_name: free-render-server-container
+    ports:
+      - "80:80"
+    environment:
+      - NGROK_ENABLED=${NGROK_ENABLED:-false}
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN:-}
+    restart: unless-stopped

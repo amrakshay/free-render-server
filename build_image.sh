@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Build the free-render-server Docker image
+# Build the free-render-server Docker image using docker-compose
 echo "Building free-render-server Docker image..."
-docker build -t free-render-server .
+docker-compose build
 
 if [ $? -eq 0 ]; then
     echo "✅ Docker image 'free-render-server' built successfully!"
