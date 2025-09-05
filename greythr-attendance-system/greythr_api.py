@@ -13,7 +13,6 @@ try:
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
     from selenium.webdriver.chrome.options import Options
-    from webdriver_manager.chrome import ChromeDriverManager
     from selenium.webdriver.chrome.service import Service
     SELENIUM_AVAILABLE = True
 except ImportError:
@@ -76,19 +75,27 @@ class GreytHRAttendanceAPI:
         logger.info("🚀 Starting Login Process...")
         logger.info("🚀 Starting browser-based login process...")
         
-        # Setup Chrome options
+        # Setup Chromium options for Alpine Linux
         chrome_options = Options()
         chrome_options.add_argument("--headless")  # Run in background
+        chrome_options.add_argument("--no-sandbox")  # Required for container
+        chrome_options.add_argument("--disable-dev-shm-usage")  # Required for container
+        chrome_options.add_argument("--disable-gpu")  # Disable GPU in headless mode
+        chrome_options.add_argument("--disable-web-security")  # Disable web security
+        chrome_options.add_argument("--disable-features=VizDisplayCompositor")  # Stability
         chrome_options.add_argument("--disable-blink-features=AutomationControlled")
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option('useAutomationExtension', False)
         chrome_options.add_argument("--window-size=1920,1080")
         
+        # Use system Chromium binary (Alpine Linux)
+        chrome_options.binary_location = "/usr/bin/chromium-browser"
+        
         driver = None
         try:
-            # Initialize WebDriver
-            logger.info("🔧 Setting up browser...")
-            service = Service(ChromeDriverManager().install())
+            # Initialize WebDriver with system ChromeDriver
+            logger.info("🔧 Setting up Chromium browser...")
+            service = Service("/usr/bin/chromedriver")  # Use system chromedriver
             driver = webdriver.Chrome(service=service, options=chrome_options)
             driver.set_page_load_timeout(30)
             

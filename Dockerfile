@@ -18,7 +18,9 @@ RUN apk update && apk add --no-cache \
     curl \
     unzip \
     openssh \
-    jq
+    jq \
+    chromium \
+    chromium-chromedriver
 
 # Conditionally install Node.js and npm for n8n
 RUN if [ "$INSTALL_N8N" = "true" ]; then \
