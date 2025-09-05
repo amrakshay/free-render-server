@@ -1,56 +1,30 @@
 #!/bin/bash
 
-# Build the free-render-server Docker image with optional features
+# ===== BUILD CONFIGURATION =====
+# Edit these variables to configure your Docker image build
+INSTALL_N8N=false
+INSTALL_NGROK=true
+# ================================
+
+# Build the free-render-server Docker image
 echo "🚀 Building free-render-server Docker image..."
 echo ""
 
-# Show build options
-echo "📋 Available build configurations:"
-echo "   1. Minimal build (default): nginx + SSH + Python only"
-echo "   2. Full build: n8n + ngrok + nginx + SSH + Python"
-echo "   3. No ngrok: n8n + nginx + SSH + Python"
-echo "   4. Custom build: specify your own options"
-echo ""
-
-# Get user choice
-read -p "Choose build type [1-4] or press Enter for default (1): " choice
-
-case "$choice" in
-    "2")
-        echo "🔧 Building full image (n8n + ngrok + nginx + SSH + Python)..."
-        export INSTALL_N8N=true
-        export INSTALL_NGROK=true
-        ;;
-    "3")
-        echo "🔧 Building without ngrok..."
-        export INSTALL_N8N=true
-        export INSTALL_NGROK=false
-        ;;
-    "4")
-        echo "🔧 Custom build options:"
-        read -p "Install n8n? [y/N]: " install_n8n
-        read -p "Install ngrok? [y/N]: " install_ngrok
-        
-        export INSTALL_N8N=$([ "$install_n8n" = "y" ] && echo "true" || echo "false")
-        export INSTALL_NGROK=$([ "$install_ngrok" = "y" ] && echo "true" || echo "false")
-        ;;
-    *)
-        echo "🔧 Building minimal image (default: nginx + SSH + Python only)..."
-        export INSTALL_N8N=false
-        export INSTALL_NGROK=false
-        ;;
-esac
-
-echo ""
 echo "📦 Build configuration:"
 echo "   • n8n installation: $INSTALL_N8N"
 echo "   • ngrok installation: $INSTALL_NGROK"
 echo "   • nginx: ✅ (always included)"
 echo "   • SSH server: ✅ (always included)"
 echo "   • Python 3.12: ✅ (always included)"
+echo "   • GreyTHR Attendance System: ✅ (always included)"
 echo ""
 
+# Export variables for docker-compose
+export INSTALL_N8N
+export INSTALL_NGROK
+
 # Build using docker-compose
+echo "🔨 Starting Docker build..."
 docker-compose build
 
 if [ $? -eq 0 ]; then
@@ -62,6 +36,7 @@ if [ $? -eq 0 ]; then
     echo "   • Web server: nginx (port 80)"
     echo "   • SSH access: root/Secure@FreeRender2024"
     echo "   • Python: 3.12 with pip and git"
+    echo "   • GreyTHR Attendance System: ✅ Available at /greythr"
     
     if [ "$INSTALL_N8N" = "true" ]; then
         echo "   • Workflow automation: n8n (/n8n path)"
@@ -77,6 +52,11 @@ if [ $? -eq 0 ]; then
     
     echo ""
     echo "🚀 Next step: ./start_container.sh"
+    echo ""
+    echo "💡 To change build options:"
+    echo "   Edit the variables at the top of this script:"
+    echo "   - INSTALL_N8N=true/false"
+    echo "   - INSTALL_NGROK=true/false"
 else
     echo ""
     echo "❌ Failed to build Docker image"

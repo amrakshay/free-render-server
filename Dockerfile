@@ -126,6 +126,23 @@ ENV N8N_ENABLED=false
 ENV NGROK_ENABLED=false
 ENV NGROK_AUTHTOKEN=
 
+# GreyTHR Attendance System environment variables
+ENV GREYTHR_ENABLED=true
+ENV GREYTHR_URL=
+ENV GREYTHR_USERNAME=
+ENV GREYTHR_PASSWORD=
+
+# Copy GreyTHR Attendance System
+COPY greythr-attendance-system /greythr-attendance-system
+WORKDIR /greythr-attendance-system
+
+# Setup GreyTHR environment using the existing setup script
+RUN chmod +x server.sh && \
+    ./server.sh setup
+
+# Return to root directory
+WORKDIR /
+
 # Expose port 80 for nginx
 EXPOSE 80
 

@@ -12,7 +12,11 @@ services:
     ports:
       - "80:80"
     environment:
-      - N8N_ENABLED=${N8N_ENABLED:-true}
+      - N8N_ENABLED=${N8N_ENABLED:-false}
       - NGROK_ENABLED=${NGROK_ENABLED:-false}
       - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN:-}
+      - GREYTHR_ENABLED=${GREYTHR_ENABLED:-true}
+      - GREYTHR_URL=${GREYTHR_URL:-}
+      - GREYTHR_USERNAME=${GREYTHR_USERNAME:-}
+      - GREYTHR_PASSWORD=${GREYTHR_PASSWORD:-}
     restart: unless-stopped

@@ -45,6 +45,31 @@ else
     echo "Ngrok tunnel disabled (NGROK_ENABLED=false)"
 fi
 
+# Start GreyTHR Attendance System if enabled
+if [ "$GREYTHR_ENABLED" = "true" ]; then
+    if command_exists python3; then
+        echo "Starting GreyTHR Attendance System..."
+        cd /greythr-attendance-system
+        
+        # Start GreyTHR server using the existing management script
+        ./server.sh start-prod
+        
+        if [ $? -eq 0 ]; then
+            echo "GreyTHR Attendance System started successfully on port 5000"
+            echo "Access at: /greythr/"
+        else
+            echo "⚠️  Failed to start GreyTHR Attendance System"
+        fi
+        
+        cd /
+    else
+        echo "⚠️  GREYTHR_ENABLED=true but python3 is not available!"
+        echo "GreyTHR Attendance System could not be started"
+    fi
+else
+    echo "GreyTHR Attendance System disabled (GREYTHR_ENABLED=false)"
+fi
+
 # Start n8n if enabled
 if [ "$N8N_ENABLED" = "true" ]; then
     if command_exists n8n && command_exists node; then
@@ -60,6 +85,9 @@ if [ "$N8N_ENABLED" = "true" ]; then
         if [ "$NGROK_ENABLED" = "true" ] && command_exists ngrok; then
             echo "Ngrok tunnel is active"
         fi
+        if [ "$GREYTHR_ENABLED" = "true" ]; then
+            echo "GreyTHR Attendance System is running on port 5000"
+        fi
         echo "Container will keep running..."
         tail -f /dev/null
     fi
@@ -68,6 +96,9 @@ else
     echo "Services running: SSH, nginx"
     if [ "$NGROK_ENABLED" = "true" ] && command_exists ngrok; then
         echo "Ngrok tunnel is active"
+    fi
+    if [ "$GREYTHR_ENABLED" = "true" ]; then
+        echo "GreyTHR Attendance System is running on port 5000"
     fi
     echo "Container will keep running..."
     
