@@ -4,6 +4,7 @@ import requests
 import json
 import os
 import logging
+import base64
 
 # Selenium imports
 try:
@@ -40,10 +41,19 @@ class GreytHRAttendanceAPI:
             logger.error("❌ GREYTHR_USERNAME environment variable not set")
             raise ValueError("GREYTHR_USERNAME environment variable is required")
 
-        self.greythr_password = os.getenv('GREYTHR_PASSWORD')
-        if not self.greythr_password:
+        # Get base64 encoded password and decode it
+        greythr_password_b64 = os.getenv('GREYTHR_PASSWORD')
+        if not greythr_password_b64:
             logger.error("❌ GREYTHR_PASSWORD environment variable not set")
             raise ValueError("GREYTHR_PASSWORD environment variable is required")
+        
+        try:
+            # Decode base64 encoded password
+            self.greythr_password = base64.b64decode(greythr_password_b64).decode('utf-8')
+            logger.info("🔐 Password decoded from base64 successfully")
+        except Exception as e:
+            logger.error(f"❌ Failed to decode base64 password: {e}")
+            raise ValueError("GREYTHR_PASSWORD must be a valid base64 encoded string")
         
         self.api_base = f"{self.base_url.rstrip('/')}/v3/api"
         self.attendance_api = f"{self.api_base}/attendance/mark-attendance"
