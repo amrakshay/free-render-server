@@ -32,6 +32,18 @@ if [ "$NGROK_ENABLED" = "true" ]; then
     echo "Ngrok TCP tunnel started for SSH"
 fi
 
-# Start n8n in the foreground as node user
-echo "Starting n8n..."
-exec su-exec node n8n start
+# Start n8n if enabled
+if [ "$N8N_ENABLED" = "true" ]; then
+    echo "Starting n8n..."
+    exec su-exec node n8n start
+else
+    echo "n8n is disabled (N8N_ENABLED=false)"
+    echo "Services running: SSH, nginx"
+    if [ "$NGROK_ENABLED" = "true" ]; then
+        echo "Ngrok tunnel is active"
+    fi
+    echo "Container will keep running..."
+    
+    # Keep container alive without n8n
+    tail -f /dev/null
+fi

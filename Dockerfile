@@ -61,7 +61,8 @@ ENV N8N_DIAGNOSTICS_ENABLED=false
 ENV N8N_ANONYMOUS_USAGE=false
 ENV N8N_DISABLE_PRODUCTION_MAIN_PROCESS=true
 
-# Set environment variables for ngrok (optional)
+# Set environment variables for optional services
+ENV N8N_ENABLED=false
 ENV NGROK_ENABLED=false
 ENV NGROK_AUTHTOKEN=
 
