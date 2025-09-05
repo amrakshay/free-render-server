@@ -168,7 +168,7 @@ start_app() {
     # Start server in background
     if [ "$PRODUCTION_MODE" = "true" ]; then
         log_info "Starting Gunicorn production server on port $APP_PORT..."
-        nohup gunicorn -w 1 -b 0.0.0.0:$APP_PORT app:app > "$LOG_FILE" 2>&1 &
+        nohup gunicorn -w 1 -k gevent -b 0.0.0.0:$APP_PORT app:app > "$LOG_FILE" 2>&1 &
     else
         log_info "Starting Flask development server on port $APP_PORT..."
         nohup python app.py > "$LOG_FILE" 2>&1 &

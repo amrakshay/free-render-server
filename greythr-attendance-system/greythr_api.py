@@ -8,6 +8,8 @@ import base64
 import tempfile
 import uuid
 import shutil
+import asyncio
+import telegram
 
 # Selenium imports
 try:
@@ -50,6 +52,16 @@ class GreytHRAttendanceAPI:
             logger.error("❌ GREYTHR_PASSWORD environment variable not set")
             raise ValueError("GREYTHR_PASSWORD environment variable is required")
         
+        telegram_bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+        if not telegram_bot_token:
+            logger.error("❌ TELEGRAM_BOT_TOKEN environment variable not set")
+            raise ValueError("TELEGRAM_BOT_TOKEN environment variable is required")
+
+        telegram_chat_id = os.getenv('TELEGRAM_CHAT_ID')
+        if not telegram_chat_id:
+            logger.error("❌ TELEGRAM_CHAT_ID environment variable not set")
+            raise ValueError("TELEGRAM_CHAT_ID environment variable is required")
+
         try:
             # Decode base64 encoded password
             self.greythr_password = base64.b64decode(greythr_password_b64).decode('utf-8')
@@ -60,7 +72,9 @@ class GreytHRAttendanceAPI:
         
         self.api_base = f"{self.base_url.rstrip('/')}/v3/api"
         self.attendance_api = f"{self.api_base}/attendance/mark-attendance"
-        
+        self.telegram_bot = telegram.Bot(token=telegram_bot_token)
+        self.telegram_chat_id = telegram_chat_id
+
         logger.info(f"🌐 Base URL: {self.base_url}")
         logger.info(f"🔗 Attendance API: {self.attendance_api}")
         
@@ -77,7 +91,38 @@ class GreytHRAttendanceAPI:
         
         logger.info("✅ GreyTHR API initialized successfully")
 
-    def login_and_get_cookies(self):
+    async def send_telegram_message(self, message):
+        """
+        Send a message to Telegram with error handling (native async)
+        """
+        logger.info(f"📱 🔄 Starting Telegram notification...")
+        logger.debug(f"📱 Message preview: {message[:100]}...")
+        logger.info(f"📱 📤 Sending to chat_id: {self.telegram_chat_id}")
+        
+        try:
+            # Simple async call - no complex event loop handling needed!
+            logger.debug(f"📱 🔄 Calling async telegram send_message...")
+            result = await self.telegram_bot.send_message(
+                chat_id=self.telegram_chat_id,
+                text=message,
+                parse_mode='HTML'
+            )
+            
+            logger.info(f"📱 ✅ Telegram message sent successfully!")
+            logger.info(f"📱 📨 Message ID: {result.message_id}")
+            logger.debug(f"📱 Full response: {result}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"📱 ❌ Failed to send Telegram message: {str(e)}")
+            logger.error(f"📱 🔍 Error type: {type(e).__name__}")
+            logger.error(f"📱 🔍 Error details: {e}")
+            return False
+        
+        finally:
+            logger.debug(f"📱 🏁 Telegram notification attempt completed")
+
+    async def login_and_get_cookies(self):
         """
         Login using Selenium and extract cookies for API calls
         """
@@ -273,13 +318,24 @@ class GreytHRAttendanceAPI:
                 except Exception as cleanup_error:
                     logger.warning(f"⚠️  Failed to cleanup {cleanup_dir}: {cleanup_error}")
 
-    def mark_attendance(self, action="Signin"):
+    async def mark_attendance(self, action="Signin"):
         """
         Mark attendance using the API endpoint
         action can be "Signin" or "Signout"
         """
         logger.info(f"🎯 MARKING ATTENDANCE: {action.upper()}")
         logger.info(f"🎯 Starting attendance API call: {action.upper()}")
+        
+        # Send Telegram notification: Request received
+        start_time = time.time()
+        username = self.greythr_username
+        await self.send_telegram_message(
+            f"🔄 <b>GreyTHR Attendance</b>\n"
+            f"📝 Action: <b>{action}</b>\n"
+            f"👤 User: <code>{username}</code>\n"
+            f"🕒 Started: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+            f"📍 Status: <i>Processing...</i>"
+        )
         
         # Prepare API request
         url = f"{self.attendance_api}?action={action}"
@@ -309,12 +365,47 @@ class GreytHRAttendanceAPI:
                 logger.debug(f"📥 Text Response: {response.text}")
             
             if response.status_code == 200:
+                # Success - Send Telegram notification
+                end_time = time.time()
+                duration = end_time - start_time
+                await self.send_telegram_message(
+                    f"✅ <b>GreyTHR Attendance</b>\n"
+                    f"📝 Action: <b>{action}</b>\n"
+                    f"👤 User: <code>{username}</code>\n"
+                    f"🕒 Completed: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    f"⏱️ Duration: <i>{duration:.1f} seconds</i>\n"
+                    f"📍 Status: <b>✅ SUCCESS</b>"
+                )
                 logger.info(f"✅ {action} SUCCESSFUL!")
                 return True
             else:
+                # API Failed - Send Telegram notification
+                end_time = time.time()
+                duration = end_time - start_time
+                await self.send_telegram_message(
+                    f"❌ <b>GreyTHR Attendance</b>\n"
+                    f"📝 Action: <b>{action}</b>\n"
+                    f"👤 User: <code>{username}</code>\n"
+                    f"🕒 Failed: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    f"⏱️ Duration: <i>{duration:.1f} seconds</i>\n"
+                    f"📍 Status: <b>❌ FAILED</b>\n"
+                    f"🔍 Error: <code>HTTP {response.status_code}</code>"
+                )
                 logger.error(f"❌ {action} FAILED! Status: {response.status_code}")
                 return False
                 
         except Exception as e:
+            # Exception - Send Telegram notification
+            end_time = time.time()
+            duration = end_time - start_time
+            await self.send_telegram_message(
+                f"💥 <b>GreyTHR Attendance</b>\n"
+                f"📝 Action: <b>{action}</b>\n"
+                f"👤 User: <code>{username}</code>\n"
+                f"🕒 Error: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"⏱️ Duration: <i>{duration:.1f} seconds</i>\n"
+                f"📍 Status: <b>💥 EXCEPTION</b>\n"
+                f"🔍 Error: <code>{str(e)[:100]}</code>"
+            )
             logger.error(f"❌ API request error: {e}", exc_info=True)
             return False
