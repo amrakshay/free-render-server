@@ -2,7 +2,11 @@ version: '3.8'
 
 services:
   free-render-server:
-    build: .
+    build: 
+      context: .
+      args:
+        INSTALL_N8N: ${INSTALL_N8N:-false}
+        INSTALL_NGROK: ${INSTALL_NGROK:-true}
     container_name: free-render-server-container
     ports:
       - "80:80"
