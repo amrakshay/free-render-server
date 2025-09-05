@@ -6,6 +6,9 @@ REST API interface for GreyTHR attendance marking
 
 import logging
 import sys
+import threading
+import time
+from datetime import datetime
 from flask import Flask, jsonify
 from greythr_api import GreytHRAttendanceAPI
 
@@ -26,17 +29,59 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+def background_attendance_worker(action, request_id):
+    """Background worker to handle actual GreyTHR attendance marking"""
+    start_time = datetime.now()
+    logger.info(f"🔄 [BG-{request_id}] Starting background {action} job at {start_time}")
+    
+    try:
+        # Initialize GreyTHR API
+        greythr_api = GreytHRAttendanceAPI()
+        
+        # Perform login and attendance marking
+        logger.info(f"🔐 [BG-{request_id}] Starting GreyTHR login...")
+        login_success = greythr_api.login_and_get_cookies()
+        
+        if not login_success:
+            logger.error(f"❌ [BG-{request_id}] Login failed")
+            return
+        
+        logger.info(f"🎯 [BG-{request_id}] Login successful, marking attendance...")
+        attendance_success = greythr_api.mark_attendance(action)
+        
+        end_time = datetime.now()
+        duration = (end_time - start_time).total_seconds()
+        
+        if attendance_success:
+            logger.info(f"✅ [BG-{request_id}] {action} completed successfully in {duration:.1f}s")
+        else:
+            logger.error(f"❌ [BG-{request_id}] {action} failed after {duration:.1f}s")
+            
+    except Exception as e:
+        end_time = datetime.now()
+        duration = (end_time - start_time).total_seconds()
+        logger.error(f"❌ [BG-{request_id}] {action} exception after {duration:.1f}s: {e}")
+    
+    logger.info(f"🏁 [BG-{request_id}] Background job finished")
+
 @app.route('/')
 def root():
     """Root endpoint"""
     logger.info("Root endpoint accessed")
     return jsonify({
         "service": "GreyTHR Attendance System",
+        "mode": "Async Background Processing",
         "endpoints": {
             "root": "/",
             "healthcheck": "/health",
-            "signin": "/signin",
-            "signout": "/signout"
+            "signin": "/signin (async - returns immediately)",
+            "signout": "/signout (async - returns immediately)"
+        },
+        "features": {
+            "immediate_response": True,
+            "background_processing": True,
+            "estimated_completion": "2-3 minutes",
+            "tracking": "Check logs for request_id progress"
         }
     })
 
@@ -50,45 +95,69 @@ def healthcheck():
 
 @app.route('/signin', methods=['GET'])
 def signin():
-    """Sign in endpoint"""
-    logger.info("📥 Signin request received")
-
+    """Sign in endpoint - Async with immediate response"""
+    request_id = f"signin-{int(time.time())}"
+    logger.info(f"📥 [REQ-{request_id}] Signin request received")
+    
     try:
-        logger.info("🔄 Calling GreyTHR mark_attendance for Signin")
-        greythr_api = GreytHRAttendanceAPI()
-        greythr_api.login_and_get_cookies()
-        success = greythr_api.mark_attendance("Signin")
+        # Start background job
+        background_thread = threading.Thread(
+            target=background_attendance_worker,
+            args=("Signin", request_id),
+            daemon=True
+        )
+        background_thread.start()
         
-        if success:
-            logger.info("✅ Signin successful")
-            return jsonify({"success": True})
-        else:
-            logger.error("❌ Signin failed - GreyTHR API returned False")
-            return jsonify({"success": False, "error": "Sign in failed"}), 500
+        logger.info(f"🚀 [REQ-{request_id}] Background signin job started")
+        
+        # Return immediate success response
+        return jsonify({
+            "success": True,
+            "message": "Signin request accepted and processing in background",
+            "request_id": request_id,
+            "estimated_completion": "2-3 minutes"
+        })
+        
     except Exception as e:
-        logger.error(f"❌ Signin exception: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        logger.error(f"❌ [REQ-{request_id}] Failed to start background job: {e}")
+        return jsonify({
+            "success": False, 
+            "error": f"Failed to start background job: {str(e)}",
+            "request_id": request_id
+        }), 500
 
 @app.route('/signout', methods=['GET'])
 def signout():
-    """Sign out endpoint"""
-    logger.info("📥 Signout request received")
+    """Sign out endpoint - Async with immediate response"""
+    request_id = f"signout-{int(time.time())}"
+    logger.info(f"📥 [REQ-{request_id}] Signout request received")
 
     try:
-        logger.info("🔄 Calling GreyTHR mark_attendance for Signout")
-        greythr_api = GreytHRAttendanceAPI()
-        greythr_api.login_and_get_cookies()
-        success = greythr_api.mark_attendance("Signout")
+        # Start background job
+        background_thread = threading.Thread(
+            target=background_attendance_worker,
+            args=("Signout", request_id),
+            daemon=True
+        )
+        background_thread.start()
         
-        if success:
-            logger.info("✅ Signout successful")
-            return jsonify({"success": True})
-        else:
-            logger.error("❌ Signout failed - GreyTHR API returned False")
-            return jsonify({"success": False, "error": "Sign out failed"}), 500
+        logger.info(f"🚀 [REQ-{request_id}] Background signout job started")
+        
+        # Return immediate success response
+        return jsonify({
+            "success": True,
+            "message": "Signout request accepted and processing in background",
+            "request_id": request_id,
+            "estimated_completion": "2-3 minutes"
+        })
+        
     except Exception as e:
-        logger.error(f"❌ Signout exception: {e}")
-        return jsonify({"success": False, "error": str(e)}), 500
+        logger.error(f"❌ [REQ-{request_id}] Failed to start background job: {e}")
+        return jsonify({
+            "success": False, 
+            "error": f"Failed to start background job: {str(e)}",
+            "request_id": request_id
+        }), 500
 
 if __name__ == '__main__':
     logger.info("🚀 Starting GreyTHR Attendance System...")
