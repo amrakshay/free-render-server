@@ -7,6 +7,7 @@ services:
       args:
         INSTALL_N8N: ${INSTALL_N8N:-false}
         INSTALL_NGROK: ${INSTALL_NGROK:-true}
+    image: free-render-server:latest
     container_name: free-render-server-container
     ports:
       - "80:80"

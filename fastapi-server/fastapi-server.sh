@@ -11,7 +11,7 @@ WORK_DIR="$SCRIPT_DIR"
 PROJECT_DIR="$WORK_DIR/fastapi-todo-app"
 VENV_DIR="$PROJECT_DIR/venv"
 APP_PORT=8000
-PID_FILE="$SCRIPT_DIR/fastapi_uvicorn.pid"
+PID_FILE="$SCRIPT_DIR/ruvicorn.pid"
 LOG_FILE="$SCRIPT_DIR/fastapi_uvicorn.log"
 
 # Colors for output
