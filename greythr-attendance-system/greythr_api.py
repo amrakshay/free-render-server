@@ -8,8 +8,6 @@ import base64
 import tempfile
 import uuid
 import shutil
-import asyncio
-import telegram
 
 # Selenium imports
 try:
@@ -72,7 +70,7 @@ class GreytHRAttendanceAPI:
         
         self.api_base = f"{self.base_url.rstrip('/')}/v3/api"
         self.attendance_api = f"{self.api_base}/attendance/mark-attendance"
-        self.telegram_bot = telegram.Bot(token=telegram_bot_token)
+        self.telegram_bot_token = telegram_bot_token
         self.telegram_chat_id = telegram_chat_id
 
         logger.info(f"🌐 Base URL: {self.base_url}")
@@ -91,27 +89,44 @@ class GreytHRAttendanceAPI:
         
         logger.info("✅ GreyTHR API initialized successfully")
 
-    async def send_telegram_message(self, message):
+    def send_telegram_message(self, message):
         """
-        Send a message to Telegram with error handling (native async)
+        Send a message to Telegram with error handling (synchronous HTTP)
         """
         logger.info(f"📱 🔄 Starting Telegram notification...")
         logger.debug(f"📱 Message preview: {message[:100]}...")
         logger.info(f"📱 📤 Sending to chat_id: {self.telegram_chat_id}")
         
         try:
-            # Simple async call - no complex event loop handling needed!
-            logger.debug(f"📱 🔄 Calling async telegram send_message...")
-            result = await self.telegram_bot.send_message(
-                chat_id=self.telegram_chat_id,
-                text=message,
-                parse_mode='HTML'
-            )
+            # Use direct HTTP API call to avoid async context issues in Flask/gevent
+            bot_token = self.telegram_bot_token
+            url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
             
-            logger.info(f"📱 ✅ Telegram message sent successfully!")
-            logger.info(f"📱 📨 Message ID: {result.message_id}")
-            logger.debug(f"📱 Full response: {result}")
-            return True
+            payload = {
+                'chat_id': self.telegram_chat_id,
+                'text': message,
+                'parse_mode': 'HTML'
+            }
+            
+            logger.debug(f"📱 🔄 Making HTTP request to Telegram API...")
+            response = self.session.post(url, json=payload, timeout=30)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get('ok'):
+                    message_id = result.get('result', {}).get('message_id', 'unknown')
+                    logger.info(f"📱 ✅ Telegram message sent successfully!")
+                    logger.info(f"📱 📨 Message ID: {message_id}")
+                    logger.debug(f"📱 Full response: {result}")
+                    return True
+                else:
+                    error_desc = result.get('description', 'Unknown error')
+                    logger.error(f"📱 ❌ Telegram API error: {error_desc}")
+                    return False
+            else:
+                logger.error(f"📱 ❌ HTTP error: {response.status_code}")
+                logger.error(f"📱 Response: {response.text}")
+                return False
             
         except Exception as e:
             logger.error(f"📱 ❌ Failed to send Telegram message: {str(e)}")
@@ -122,7 +137,7 @@ class GreytHRAttendanceAPI:
         finally:
             logger.debug(f"📱 🏁 Telegram notification attempt completed")
 
-    async def login_and_get_cookies(self):
+    def login_and_get_cookies(self):
         """
         Login using Selenium and extract cookies for API calls
         """
@@ -300,8 +315,7 @@ class GreytHRAttendanceAPI:
             return True
             
         except Exception as e:
-            logger.error(f"❌ Login error: {e}", exc_info=True)
-            return False
+            raise e
             
         finally:
             if driver:
@@ -318,7 +332,7 @@ class GreytHRAttendanceAPI:
                 except Exception as cleanup_error:
                     logger.warning(f"⚠️  Failed to cleanup {cleanup_dir}: {cleanup_error}")
 
-    async def mark_attendance(self, action="Signin"):
+    def mark_attendance(self, action="Signin"):
         """
         Mark attendance using the API endpoint
         action can be "Signin" or "Signout"
@@ -329,13 +343,30 @@ class GreytHRAttendanceAPI:
         # Send Telegram notification: Request received
         start_time = time.time()
         username = self.greythr_username
-        await self.send_telegram_message(
+        self.send_telegram_message(
             f"🔄 <b>GreyTHR Attendance</b>\n"
             f"📝 Action: <b>{action}</b>\n"
             f"👤 User: <code>{username}</code>\n"
             f"🕒 Started: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
             f"📍 Status: <i>Processing...</i>"
         )
+
+        try:
+            login_success = self.login_and_get_cookies()
+        except Exception as e:
+            end_time = time.time()
+            duration = end_time - start_time
+            logger.error(f"❌ Login failed: {e}")
+            self.send_telegram_message(
+                f"❌ <b>GreyTHR Attendance</b>\n"
+                f"📝 Action: <b>{action}</b>\n"
+                f"👤 User: <code>{username}</code>\n"
+                f"🕒 Failed: {time.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"⏱️ Duration: <i>{duration:.1f} seconds</i>\n"
+                f"📍 Status: <b>❌ FAILED</b>\n"
+                f"🔍 Error: <code>{str(e)[:100]}</code>"
+            )
+            return False
         
         # Prepare API request
         url = f"{self.attendance_api}?action={action}"
@@ -368,7 +399,7 @@ class GreytHRAttendanceAPI:
                 # Success - Send Telegram notification
                 end_time = time.time()
                 duration = end_time - start_time
-                await self.send_telegram_message(
+                self.send_telegram_message(
                     f"✅ <b>GreyTHR Attendance</b>\n"
                     f"📝 Action: <b>{action}</b>\n"
                     f"👤 User: <code>{username}</code>\n"
@@ -382,7 +413,7 @@ class GreytHRAttendanceAPI:
                 # API Failed - Send Telegram notification
                 end_time = time.time()
                 duration = end_time - start_time
-                await self.send_telegram_message(
+                self.send_telegram_message(
                     f"❌ <b>GreyTHR Attendance</b>\n"
                     f"📝 Action: <b>{action}</b>\n"
                     f"👤 User: <code>{username}</code>\n"
@@ -398,7 +429,7 @@ class GreytHRAttendanceAPI:
             # Exception - Send Telegram notification
             end_time = time.time()
             duration = end_time - start_time
-            await self.send_telegram_message(
+            self.send_telegram_message(
                 f"💥 <b>GreyTHR Attendance</b>\n"
                 f"📝 Action: <b>{action}</b>\n"
                 f"👤 User: <code>{username}</code>\n"

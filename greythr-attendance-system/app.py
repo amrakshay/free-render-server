@@ -6,7 +6,7 @@ REST API interface for GreyTHR attendance marking
 
 import logging
 import sys
-import asyncio
+import threading
 import time
 from datetime import datetime
 from flask import Flask, jsonify
@@ -29,25 +29,17 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-async def background_attendance_worker(action, request_id):
-    """Background worker to handle actual GreyTHR attendance marking (async)"""
+def background_attendance_worker(action, request_id):
+    """Background worker to handle actual GreyTHR attendance marking"""
     start_time = datetime.now()
     logger.info(f"🔄 [BG-{request_id}] Starting background {action} job at {start_time}")
     
     try:
         # Initialize GreyTHR API
         greythr_api = GreytHRAttendanceAPI()
-        
-        # Perform login and attendance marking (now async)
-        logger.info(f"🔐 [BG-{request_id}] Starting GreyTHR login...")
-        login_success = await greythr_api.login_and_get_cookies()
-        
-        if not login_success:
-            logger.error(f"❌ [BG-{request_id}] Login failed")
-            return
-        
-        logger.info(f"🎯 [BG-{request_id}] Login successful, marking attendance...")
-        attendance_success = await greythr_api.mark_attendance(action)
+
+        logger.info(f"🎯 [BG-{request_id}] Marking attendance...")
+        attendance_success = greythr_api.mark_attendance(action)
         
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
@@ -94,16 +86,21 @@ def healthcheck():
     })
 
 @app.route('/signin', methods=['GET'])
-async def signin():
+def signin():
     """Sign in endpoint - Async with immediate response"""
     request_id = f"signin-{int(time.time())}"
     logger.info(f"📥 [REQ-{request_id}] Signin request received")
     
     try:
-        # Start background task (async)
-        asyncio.create_task(background_attendance_worker("Signin", request_id))
+        # Start background job
+        background_thread = threading.Thread(
+            target=background_attendance_worker,
+            args=("Signin", request_id),
+            daemon=True
+        )
+        background_thread.start()
         
-        logger.info(f"🚀 [REQ-{request_id}] Background signin task started")
+        logger.info(f"🚀 [REQ-{request_id}] Background signin job started")
         
         # Return immediate success response
         return jsonify({
@@ -114,24 +111,29 @@ async def signin():
         })
         
     except Exception as e:
-        logger.error(f"❌ [REQ-{request_id}] Failed to start background task: {e}")
+        logger.error(f"❌ [REQ-{request_id}] Failed to start background job: {e}")
         return jsonify({
             "success": False, 
-            "error": f"Failed to start background task: {str(e)}",
+            "error": f"Failed to start background job: {str(e)}",
             "request_id": request_id
         }), 500
 
 @app.route('/signout', methods=['GET'])
-async def signout():
+def signout():
     """Sign out endpoint - Async with immediate response"""
     request_id = f"signout-{int(time.time())}"
     logger.info(f"📥 [REQ-{request_id}] Signout request received")
 
     try:
-        # Start background task (async)
-        asyncio.create_task(background_attendance_worker("Signout", request_id))
+        # Start background job
+        background_thread = threading.Thread(
+            target=background_attendance_worker,
+            args=("Signout", request_id),
+            daemon=True
+        )
+        background_thread.start()
         
-        logger.info(f"🚀 [REQ-{request_id}] Background signout task started")
+        logger.info(f"🚀 [REQ-{request_id}] Background signout job started")
         
         # Return immediate success response
         return jsonify({
@@ -142,10 +144,10 @@ async def signout():
         })
         
     except Exception as e:
-        logger.error(f"❌ [REQ-{request_id}] Failed to start background task: {e}")
+        logger.error(f"❌ [REQ-{request_id}] Failed to start background job: {e}")
         return jsonify({
             "success": False, 
-            "error": f"Failed to start background task: {str(e)}",
+            "error": f"Failed to start background job: {str(e)}",
             "request_id": request_id
         }), 500
 

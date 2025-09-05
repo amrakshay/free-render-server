@@ -3,5 +3,3 @@ Werkzeug==3.0.1
 requests==2.31.0
 selenium==4.15.2
 gunicorn==21.2.0
-gevent==24.2.1
-python-telegram-bot==22.3
