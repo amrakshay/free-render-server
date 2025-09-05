@@ -6,6 +6,10 @@ RUN apk update && apk add --no-cache \
     nginx \
     nodejs \
     npm \
+    python3 \
+    python3-dev \
+    py3-pip \
+    git \
     su-exec \
     shadow \
     bash \
@@ -13,6 +17,11 @@ RUN apk update && apk add --no-cache \
     unzip \
     openssh \
     jq
+
+# Verify Python 3.12 installation
+RUN echo "Python version: $(python3 --version)" && \
+    echo "Pip version: $(pip3 --version)" && \
+    echo "Git version: $(git --version)"
 
 # Install n8n globally FIRST (most expensive step)
 RUN npm install -g n8n
