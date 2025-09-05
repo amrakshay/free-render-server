@@ -5,6 +5,9 @@ import json
 import os
 import logging
 import base64
+import tempfile
+import uuid
+import shutil
 
 # Selenium imports
 try:
@@ -85,7 +88,7 @@ class GreytHRAttendanceAPI:
         logger.info("🚀 Starting Login Process...")
         logger.info("🚀 Starting browser-based login process...")
         
-        # Setup Chromium options for Alpine Linux
+        # Setup Chromium options for cloud deployment (Render.com compatible)
         chrome_options = Options()
         chrome_options.add_argument("--headless")  # Run in background
         chrome_options.add_argument("--no-sandbox")  # Required for container
@@ -93,6 +96,43 @@ class GreytHRAttendanceAPI:
         chrome_options.add_argument("--disable-gpu")  # Disable GPU in headless mode
         chrome_options.add_argument("--disable-web-security")  # Disable web security
         chrome_options.add_argument("--disable-features=VizDisplayCompositor")  # Stability
+        
+        # Fix for "DevToolsActivePort file doesn't exist" error in cloud environments
+        chrome_options.add_argument("--remote-debugging-port=0")  # Disable remote debugging
+        chrome_options.add_argument("--disable-dev-tools")  # Disable DevTools completely
+        chrome_options.add_argument("--disable-extensions-http-throttling")
+        chrome_options.add_argument("--disable-logging")  # Disable logging
+        chrome_options.add_argument("--disable-default-apps")
+        chrome_options.add_argument("--disable-component-extensions-with-background-pages")
+        
+        # Create unique user data directory for this session to avoid conflicts
+        session_id = str(uuid.uuid4())[:8]  # Short unique ID
+        user_data_dir = f"/tmp/chromium-{session_id}"
+        cache_dir = f"/tmp/chromium-cache-{session_id}"
+        
+        chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
+        chrome_options.add_argument(f"--data-path={user_data_dir}/data")
+        chrome_options.add_argument("--homedir=/tmp")
+        chrome_options.add_argument(f"--disk-cache-dir={cache_dir}")
+        
+        # Additional cloud platform optimizations (enabled for better cloud performance)
+        # chrome_options.add_argument("--disable-extensions")  # Disable extensions
+        # chrome_options.add_argument("--disable-plugins")  # Disable plugins
+        # chrome_options.add_argument("--disable-images")  # Disable image loading for speed
+        # chrome_options.add_argument("--no-zygote")  # Disable zygote process
+        # chrome_options.add_argument("--disable-background-timer-throttling")
+        # chrome_options.add_argument("--disable-backgrounding-occluded-windows")
+        # chrome_options.add_argument("--disable-renderer-backgrounding")
+        # chrome_options.add_argument("--disable-background-networking")
+        # chrome_options.add_argument("--disable-ipc-flooding-protection")
+        # chrome_options.add_argument("--memory-pressure-off")  # Disable memory pressure
+        # chrome_options.add_argument("--max_old_space_size=4096")  # Increase memory limit
+        
+        # Resource optimization for cloud environments
+        chrome_options.add_argument("--aggressive-cache-discard")
+        chrome_options.add_argument("--no-first-run")  # Skip first run setup
+        
+        # Anti-detection (keep some for compatibility)
         chrome_options.add_argument("--disable-blink-features=AutomationControlled")
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option('useAutomationExtension', False)
@@ -101,18 +141,28 @@ class GreytHRAttendanceAPI:
         # Use system Chromium binary (Alpine Linux)
         chrome_options.binary_location = "/usr/bin/chromium-browser"
         
+        # Create unique temporary directories for this session
+        temp_dirs = [user_data_dir, f"{user_data_dir}/data", cache_dir]
+        for temp_dir in temp_dirs:
+            os.makedirs(temp_dir, exist_ok=True)
+        
+        logger.info(f"🗂️  Created unique session directories: {session_id}")
+        
         driver = None
         try:
             # Initialize WebDriver with system ChromeDriver
             logger.info("🔧 Setting up Chromium browser...")
             service = Service("/usr/bin/chromedriver")  # Use system chromedriver
             driver = webdriver.Chrome(service=service, options=chrome_options)
-            driver.set_page_load_timeout(30)
+            
+            # Extended timeouts for cloud environments (Render.com)
+            driver.set_page_load_timeout(90)  # Increased from 30s to 90s
+            driver.implicitly_wait(20)  # Wait up to 20s for elements
             
             # Login process
             logger.info(f"🔐 Logging in to: {self.base_url}")
             driver.get(self.base_url)
-            time.sleep(5)  # Wait for JavaScript to load
+            time.sleep(10)  # Extended wait for cloud environments (was 5s)
             
             # Find and fill login fields
             logger.info("🔍 Finding login fields...")
@@ -128,7 +178,7 @@ class GreytHRAttendanceAPI:
             username_field = None
             for selector in username_selectors:
                 try:
-                    username_field = WebDriverWait(driver, 10).until(
+                    username_field = WebDriverWait(driver, 30).until(
                         EC.presence_of_element_located((By.CSS_SELECTOR, selector))
                     )
                     logger.info("✅ Username field found")
@@ -212,6 +262,16 @@ class GreytHRAttendanceAPI:
             if driver:
                 logger.debug("🛑 Closing browser driver")
                 driver.quit()
+            
+            # Clean up temporary directories
+            cleanup_dirs = [user_data_dir, cache_dir]
+            for cleanup_dir in cleanup_dirs:
+                try:
+                    if os.path.exists(cleanup_dir):
+                        shutil.rmtree(cleanup_dir)
+                        logger.debug(f"🗑️  Cleaned up: {cleanup_dir}")
+                except Exception as cleanup_error:
+                    logger.warning(f"⚠️  Failed to cleanup {cleanup_dir}: {cleanup_error}")
 
     def mark_attendance(self, action="Signin"):
         """
@@ -231,11 +291,11 @@ class GreytHRAttendanceAPI:
         logger.debug(f"📤 Request payload: {json.dumps(payload)}")
         
         try:
-            # Make the API request
+            # Make the API request with extended timeout for cloud environments
             response = self.session.post(
                 url,
                 json=payload,
-                timeout=30
+                timeout=90  # Increased from 30s to 90s for cloud deployment
             )
             
             logger.info(f"📥 API Response: Status {response.status_code}")
